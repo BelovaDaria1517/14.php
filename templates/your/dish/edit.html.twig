@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Редактировать блюдо{% endblock %}
+
+{% block body %}
+    <h1>Редактировать блюдо</h1>
+
+    {{ form_start(form) }}
+        <div class="form-group">
+            {{ form_label(form.name) }}
+            {{ form_widget(form.name) }}
+        </div>
+
+        <div class="form-group">
+            {{ form_label(form.price) }}
+            {{ form_widget(form.price) }}
+        </div>
+
+        <div class="form-group">
+            {{ form_label(form.imageFile) }}
+            {{ form_widget(form.imageFile) }}
+            <small>Допустимые форматы: JPG, PNG. Максимальный размер: 2MB</small>
+        </div>
+
+        {% if dish.hasImage %}
+            <div class="form-group">
+                <label>Текущее фото:</label>
+                <div>
+                    <img src="{{ vich_uploader_asset(dish, 'imageFile') }}" alt="{{ dish.name }}" style="max-width: 200px;">
+                    <form method="post" action="{{ path('app_dish_delete_image', {'id': dish.id}) }}" style="display: inline;">
+                        <input type="hidden" name="_token" value="{{ csrf_token('delete-image' ~ dish.id) }}">
+                        <button type="submit" class="btn btn-danger">Удалить фото</button>
+                    </form>
+                </div>
+            </div>
+        {% else %}
+            <div class="form-group">
+                <label>Текущее фото:</label>
+                <div>
+                    <img src="{{ asset('images/placeholder.jpg') }}" alt="Заглушка" style="max-width: 200px;">
+                    <p>Фото не загружено</p>
+                </div>
+            </div>
+        {% endif %}
+
+        <button class="btn btn-primary">Сохранить</button>
+        <a href="{{ path('app_dish_index') }}" class="btn btn-secondary">Отмена</a>
+    {{ form_end(form) }}
+{% endblock %}

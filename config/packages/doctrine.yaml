@@ -1,0 +1,5 @@
+doctrine:
+    dbal:
+        url: 'sqlite:///%kernel.project_dir%/var/data.db'
+    orm:
+        auto_mapping: true

@@ -1,0 +1,93 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Заказ #{{ order.id }}{% endblock %}
+
+{% block body %}
+    <h1>Заказ #{{ order.id }}</h1>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Информация о заказе</h5>
+            <p><strong>Клиент:</strong> {{ order.client.FIO }}</p>
+            <p><strong>Телефон:</strong> {{ order.client.phone }}</p>
+            <p><strong>Общая сумма:</strong> {{ order.totalPrice }} руб.</p>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5 class="card-title">Блюда в заказе</h5>
+            <ul>
+                {% for dish in order.dishes %}
+                    <li>{{ dish.name }} - {{ dish.price }} руб.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title">Прикрепленные файлы</h5>
+                <a href="{{ path('app_order_file_new', {'orderId': order.id}) }}" class="btn btn-success">
+                    + Добавить файл
+                </a>
+            </div>
+
+            {% if order.files|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Название</th>
+                                <th>Тип</th>
+                                <th>Размер</th>
+                                <th>Дата загрузки</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for file in order.files %}
+                                <tr>
+                                    <td>{{ file.originalName }}</td>
+                                    <td>
+                                        {% if file.isImage %}
+                                            <span class="badge bg-primary">Изображение</span>
+                                        {% elseif file.isPdf %}
+                                            <span class="badge bg-danger">PDF</span>
+                                        {% elseif file.isDocument %}
+                                            <span class="badge bg-success">Документ</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Файл</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ file.readableFileSize }}</td>
+                                    <td>{{ file.uploadedAt|date('d.m.Y H:i') }}</td>
+                                    <td>
+                                        <a href="{{ path('app_order_file_download', {'id': file.id}) }}" 
+                                           class="btn btn-primary btn-sm">
+                                            Скачать
+                                        </a>
+                                        <form method="post" 
+                                              action="{{ path('app_order_file_delete', {'id': file.id}) }}" 
+                                              style="display: inline;">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ file.id) }}">
+                                            <button type="submit" class="btn btn-danger btn-sm" 
+                                                    onclick="return confirm('Удалить файл?')">
+                                                Удалить
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted">Файлы не прикреплены</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <a href="{{ path('app_order_index') }}" class="btn btn-secondary mt-3">Назад к списку</a>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Клиенты - Ресторан{% endblock %}
+
+{% block page_title %}Управление клиентами{% endblock %}
+
+{% block content %}
+    <h2>Добавить клиента</h2>
+    <form method="POST" action="/clients">
+        <div>
+            <label>Имя:</label>
+            <input type="text" name="name" required>
+        </div>
+        <div>
+            <label>Телефон:</label>
+            <input type="text" name="phone">
+        </div>
+        <button type="submit">Добавить клиента</button>
+    </form>
+    
+    <h2>Список клиентов</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Имя</th>
+                <th>Телефон</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+            <tr>
+                <td>{{ client.id }}</td>
+                <td>{{ client.name }}</td>
+                <td>{{ client.phone }}</td>
+                <td>
+                    <a href="/clients/{{ client.id }}/edit">Редактировать</a>
+                    <form method="POST" action="/clients/{{ client.id }}/delete" style="display:inline;">
+                        <button type="submit">Удалить</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Добавить файл к заказу{% endblock %}
+
+{% block body %}
+    <h1>Добавить файл к заказу #{{ order.id }}</h1>
+
+    {{ form_start(form) }}
+        <div class="form-group">
+            {{ form_label(form.file) }}
+            {{ form_widget(form.file) }}
+            <small>
+                Допустимые форматы: JPG, PNG, PDF, DOCX, DOC, TXT.<br>
+                Максимальный размер: 10MB
+            </small>
+        </div>
+
+        <button class="btn btn-primary">Загрузить файл</button>
+        <a href="{{ path('app_order_show', {'id': order.id}) }}" class="btn btn-secondary">Отмена</a>
+    {{ form_end(form) }}
+{% endblock %}
