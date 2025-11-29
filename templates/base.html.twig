@@ -8,13 +8,21 @@
     <h1>{% block page_title %}Ресторан - Система управления{% endblock %}</h1>
     
     <nav>
-        <a href="/">Главная</a> |
-        <a href="/clients">Клиенты</a> |
-        <a href="/dishes">Меню</a> |
-        <a href="/orders">Заказы</a>
+        <a href="{{ path('app_dish_index') }}">Главная</a> 
+        <a href="{{ path('app_client_index') }}">Клиенты</a> 
+        <a href="{{ path('app_dish_index') }}">Меню</a> 
+        <a href="{{ path('app_order_index') }}">Заказы</a>
     </nav>
 
     <hr>
+
+    {% for message in app.flashes('success') %}
+        <div>{{ message }}</div>
+    {% endfor %}
+
+    {% for message in app.flashes('warning') %}
+        <div>{{ message }}</div>
+    {% endfor %}
 
     {% block content %}{% endblock %}
 
