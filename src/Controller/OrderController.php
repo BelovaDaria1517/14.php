@@ -1,81 +1,192 @@
 <?php
-
 namespace App\Controller;
-
 use App\Entity\Order;
-use App\Form\OrderType;
-use App\Repository\OrderRepository;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Entity\OrderFile;
+use Doctrine\Persistence\ManagerRegistry;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\String\Slugger\SluggerInterface;
 
-#[Route('/order')]
-final class OrderController extends AbstractController
+#[Route('/orders')]
+class OrderController extends AbstractController
 {
-    #[Route(name: 'app_order_index', methods: ['GET'])]
-    public function index(OrderRepository $orderRepository): Response
+    #[Route('/', name: 'order_index')]
+    public function index(ManagerRegistry $doctrine): Response
     {
-        return $this->render('order/index.html.twig', [
-            'orders' => $orderRepository->findAll(),
-        ]);
+        if ($this->getUser()) {
+            return $this->redirectToRoute('app_profile');
+        }
+        $orders = $doctrine->getRepository(Order::class)->findAll();
+        return $this->render('order/index.html.twig', ['orders' => $orders]);
     }
 
-    #[Route('/new', name: 'app_order_new', methods: ['GET', 'POST'])]
-    public function new(Request $request, EntityManagerInterface $entityManager): Response
+    #[Route('/new', name: 'order_new', methods: ['GET', 'POST'])]
+    public function new(Request $request, ManagerRegistry $doctrine, SluggerInterface $slugger): Response
     {
         $order = new Order();
-        $form = $this->createForm(OrderType::class, $order);
-        $form->handleRequest($request);
 
-        if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->persist($order);
-            $entityManager->flush();
-
-            return $this->redirectToRoute('app_order_index', [], Response::HTTP_SEE_OTHER);
+        $loggedClient = $this->getUser();
+        if ($loggedClient instanceof \App\Entity\Client) {
+            $order->setClient($loggedClient);
+            $form = $this->createFormBuilder($order)
+                ->add('dishes', null, ['expanded' => true, 'multiple' => true])
+                ->getForm();
+        } else {
+            $form = $this->createFormBuilder($order)
+                ->add('client')
+                ->add('dishes', null, ['expanded' => true, 'multiple' => true])
+                ->getForm();
         }
 
-        return $this->render('order/new.html.twig', [
-            'order' => $order,
-            'form' => $form,
-        ]);
-    }
-
-    #[Route('/{id}', name: 'app_order_show', methods: ['GET'])]
-    public function show(Order $order): Response
-    {
-        return $this->render('order/show.html.twig', [
-            'order' => $order,
-        ]);
-    }
-
-    #[Route('/{id}/edit', name: 'app_order_edit', methods: ['GET', 'POST'])]
-    public function edit(Request $request, Order $order, EntityManagerInterface $entityManager): Response
-    {
-        $form = $this->createForm(OrderType::class, $order);
         $form->handleRequest($request);
-
         if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->flush();
+            $files = $request->files->get('files', []);
+            if (!is_array($files)) $files = [$files];
+            foreach ($files as $file) {
+                if ($file instanceof UploadedFile) {
+                    $orderFile = new OrderFile();
+                    $orig = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                    $safe = $slugger->slug($orig);
+                    $name = $safe.'-'.uniqid().'.'.$file->guessExtension();
+                    $file->move($this->getParameter('kernel.project_dir').'/public/uploads/orders', $name);
+                    $orderFile->setOriginalName($file->getClientOriginalName());
+                    $orderFile->setStoredPath('/uploads/orders/'.$name);
+                    $order->addFile($orderFile);
+                }
+            }
 
-            return $this->redirectToRoute('app_order_index', [], Response::HTTP_SEE_OTHER);
+            $doctrine->getManager()->persist($order);
+            $doctrine->getManager()->flush();
+            return $this->redirectToRoute('order_index');
+        }
+
+        return $this->render('order/new.html.twig', ['form' => $form->createView()]);
+    }
+
+    #[Route('/{id}/edit', name: 'order_edit', methods: ['GET', 'PUT'])]
+    public function edit(Request $request, Order $order, ManagerRegistry $doctrine, SluggerInterface $slugger): Response
+    {
+        $loggedClient = $this->getUser();
+        if ($loggedClient && $order->getClient() !== $loggedClient) {
+            throw $this->createAccessDeniedException('Вы не можете редактировать чужой заказ');
+        }
+
+        if ($loggedClient instanceof \App\Entity\Client) {
+            $form = $this->createFormBuilder($order, ['method' => 'PUT'])
+                ->add('dishes', null, ['expanded' => true, 'multiple' => true])
+                ->getForm();
+        } else {
+            $form = $this->createFormBuilder($order, ['method' => 'PUT'])
+                ->add('client')
+                ->add('dishes', null, ['expanded' => true, 'multiple' => true])
+                ->getForm();
+        }
+
+        if ($request->isMethod('PUT')) {
+            $form->submit($request->request->all());
+            if ($form->isSubmitted() && $form->isValid()) {
+                $files = $request->files->get('files', []);
+                if (!is_array($files)) $files = [$files];
+                foreach ($files as $file) {
+                    if ($file instanceof UploadedFile) {
+                        $orderFile = new OrderFile();
+                        $orig = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                        $safe = $slugger->slug($orig);
+                        $name = $safe.'-'.uniqid().'.'.$file->guessExtension();
+                        $file->move($this->getParameter('kernel.project_dir').'/public/uploads/orders', $name);
+                        $orderFile->setOriginalName($file->getClientOriginalName());
+                        $orderFile->setStoredPath('/uploads/orders/'.$name);
+                        $order->addFile($orderFile);
+                    }
+                }
+                $doctrine->getManager()->flush();
+                return $this->redirectToRoute('order_index');
+            }
         }
 
         return $this->render('order/edit.html.twig', [
             'order' => $order,
-            'form' => $form,
+            'form' => $form->createView(),
         ]);
     }
 
-    #[Route('/{id}', name: 'app_order_delete', methods: ['POST'])]
-    public function delete(Request $request, Order $order, EntityManagerInterface $entityManager): Response
+    #[Route('/{id}/delete', name: 'order_delete', methods: ['POST'])]
+    public function delete(Request $request, Order $order, ManagerRegistry $doctrine): Response
     {
-        if ($this->isCsrfTokenValid('delete'.$order->getId(), $request->getPayload()->getString('_token'))) {
-            $entityManager->remove($order);
-            $entityManager->flush();
+        if ($this->isCsrfTokenValid('delete'.$order->getId(), $request->request->get('_token'))) {
+            foreach ($order->getFiles() as $file) {
+                $path = $this->getParameter('kernel.project_dir').$file->getStoredPath();
+                if (file_exists($path)) unlink($path);
+            }
+            $doctrine->getManager()->remove($order);
+            $doctrine->getManager()->flush();
+        }
+        return $this->redirectToRoute('order_index');
+    }
+
+    #[Route('/files/{id}/download', name: 'order_file_download')]
+    public function downloadFile(OrderFile $file): Response
+    {
+        $path = $this->getParameter('kernel.project_dir').$file->getStoredPath();
+        return new BinaryFileResponse($path, 200, [
+            'Content-Disposition' => 'attachment; filename="'.$file->getOriginalName().'"',
+        ]);
+    }
+
+    #[Route('/files/{id}/delete', name: 'order_file_delete', methods: ['POST'])]
+    public function deleteFile(Request $request, OrderFile $file, ManagerRegistry $doctrine): Response
+    {
+        if ($this->isCsrfTokenValid('delete-file'.$file->getId(), $request->request->get('_token'))) {
+            $path = $this->getParameter('kernel.project_dir').$file->getStoredPath();
+            if (file_exists($path)) unlink($path);
+            $doctrine->getManager()->remove($file);
+            $doctrine->getManager()->flush();
+        }
+        return $this->redirectToRoute('order_edit', ['id' => $file->getOrder()->getId()]);
+    }
+
+    #[Route('/export/excel', name: 'order_export_excel')]
+    public function exportExcel(ManagerRegistry $doctrine): Response
+    {
+        $orders = $doctrine->getRepository(Order::class)->findAll();
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Заказы');
+
+        $sheet->setCellValue('A1', 'ID');
+        $sheet->setCellValue('B1', 'Клиент');
+        $sheet->setCellValue('C1', 'Блюда');
+        $sheet->setCellValue('D1', 'Дата');
+
+        $row = 2;
+        foreach ($orders as $order) {
+            $dishes = implode(', ', $order->getDishes()->map(fn($d) => $d->getName())->toArray());
+            $sheet->setCellValue('A'.$row, $order->getId());
+            $sheet->setCellValue('B'.$row, $order->getClient()->getName());
+            $sheet->setCellValue('C'.$row, $dishes);
+            $sheet->setCellValue('D'.$row, $order->getCreatedAt()->format('d.m.Y H:i'));
+            $row++;
         }
 
-        return $this->redirectToRoute('app_order_index', [], Response::HTTP_SEE_OTHER);
+        $sheet->getColumnDimension('A')->setWidth(5);
+        $sheet->getColumnDimension('B')->setWidth(20);
+        $sheet->getColumnDimension('C')->setWidth(40);
+        $sheet->getColumnDimension('D')->setWidth(15);
+
+        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $filename = 'orders_'.date('Y-m-d_His').'.xlsx';
+        $tempFile = sys_get_temp_dir().'/'.$filename;
+        $writer->save($tempFile);
+
+        return new BinaryFileResponse($tempFile, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ], true, null, true);
     }
 }

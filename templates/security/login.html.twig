@@ -1,0 +1,29 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Вход в систему{% endblock %}
+
+{% block content %}
+    <h1>Вход для клиентов</h1>
+
+    <form method="post">
+        {% if error %}
+            <div style="color: red;">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
+        {% endif %}
+
+        <div>
+            <label for="username">Номер телефона:</label>
+            <input type="text" value="{{ last_username }}" name="_username" id="username" required>
+        </div>
+
+        <div>
+            <label for="password">Пароль:</label>
+            <input type="password" name="_password" id="password" required>
+        </div>
+
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+
+        <button type="submit">Войти</button>
+    </form>
+
+    <p>Нет аккаунта? <a href="{{ path('app_register') }}">Зарегистрироваться</a></p>
+{% endblock %}

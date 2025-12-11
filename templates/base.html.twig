@@ -8,10 +8,16 @@
     <h1>{% block page_title %}Ресторан - Система управления{% endblock %}</h1>
     
     <nav>
-        <a href="{{ path('app_dish_index') }}">Главная</a> 
-        <a href="{{ path('app_client_index') }}">Клиенты</a> 
-        <a href="{{ path('app_dish_index') }}">Меню</a> 
-        <a href="{{ path('app_order_index') }}">Заказы</a>
+        {% if is_granted('ROLE_CLIENT') %}
+            <span>Добро пожаловать, {{ app.user.fio }}!</span>
+            <a href="{{ path('app_client_orders') }}">Мои заказы</a>
+            <a href="{{ path('app_client_order_new') }}">Новый заказ</a>
+            <a href="{{ path('app_logout') }}">Выйти</a>
+        {% else %}
+            <a href="{{ path('app_dish_index') }}">Меню</a>
+            <a href="{{ path('app_login') }}">Войти</a>
+            <a href="{{ path('app_register') }}">Регистрация</a>
+        {% endif %}
     </nav>
 
     <hr>

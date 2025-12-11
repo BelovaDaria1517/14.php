@@ -1,81 +1,77 @@
 <?php
-
 namespace App\Controller;
-
 use App\Entity\Client;
-use App\Form\ClientType;
-use App\Repository\ClientRepository;
-use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\Routing\Annotation\Route;
 
-#[Route('/client')]
-final class ClientController extends AbstractController
+#[Route('/admin/clients')]
+class ClientController extends AbstractController
 {
-    #[Route(name: 'app_client_index', methods: ['GET'])]
-    public function index(ClientRepository $clientRepository): Response
+    #[Route('/', name: 'client_index')]
+    public function index(ManagerRegistry $doctrine): Response
     {
-        return $this->render('client/index.html.twig', [
-            'clients' => $clientRepository->findAll(),
-        ]);
+        $clients = $doctrine->getRepository(Client::class)->findAll();
+        return $this->render('client/index.html.twig', ['clients' => $clients]);
     }
 
-    #[Route('/new', name: 'app_client_new', methods: ['GET', 'POST'])]
-    public function new(Request $request, EntityManagerInterface $entityManager): Response
+    #[Route('/new', name: 'client_new', methods: ['GET', 'POST'])]
+    public function new(Request $request, ManagerRegistry $doctrine, UserPasswordHasherInterface $hasher): Response
     {
         $client = new Client();
-        $form = $this->createForm(ClientType::class, $client);
+        $form = $this->createFormBuilder($client)
+            ->add('name')->add('phone')->getForm();
+
         $form->handleRequest($request);
-
         if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->persist($client);
-            $entityManager->flush();
-
-            return $this->redirectToRoute('app_client_index', [], Response::HTTP_SEE_OTHER);
+            $plain = $request->request->get('password');
+            if ($plain) {
+                $client->setPassword($hasher->hashPassword($client, $plain));
+            }
+            $doctrine->getManager()->persist($client);
+            $doctrine->getManager()->flush();
+            return $this->redirectToRoute('client_index');
         }
-
         return $this->render('client/new.html.twig', [
-            'client' => $client,
-            'form' => $form,
+            'form' => $form->createView(),
+            'show_password' => true
         ]);
     }
 
-    #[Route('/{id}', name: 'app_client_show', methods: ['GET'])]
-    public function show(Client $client): Response
+    #[Route('/{id}/edit', name: 'client_edit', methods: ['GET', 'PUT'])]
+    public function edit(Request $request, Client $client, ManagerRegistry $doctrine, UserPasswordHasherInterface $hasher): Response
     {
-        return $this->render('client/show.html.twig', [
-            'client' => $client,
-        ]);
-    }
+        $form = $this->createFormBuilder($client, ['method' => 'PUT'])
+            ->add('name')->add('phone')->getForm();
 
-    #[Route('/{id}/edit', name: 'app_client_edit', methods: ['GET', 'POST'])]
-    public function edit(Request $request, Client $client, EntityManagerInterface $entityManager): Response
-    {
-        $form = $this->createForm(ClientType::class, $client);
-        $form->handleRequest($request);
-
-        if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->flush();
-
-            return $this->redirectToRoute('app_client_index', [], Response::HTTP_SEE_OTHER);
+        if ($request->isMethod('PUT')) {
+            $form->submit($request->request->all());
+            if ($form->isSubmitted() && $form->isValid()) {
+                $plain = $request->request->get('password');
+                if ($plain) {
+                    $client->setPassword($hasher->hashPassword($client, $plain));
+                }
+                $doctrine->getManager()->flush();
+                return $this->redirectToRoute('client_index');
+            }
         }
-
         return $this->render('client/edit.html.twig', [
             'client' => $client,
-            'form' => $form,
+            'form' => $form->createView(),
+            'show_password' => true
         ]);
     }
 
-    #[Route('/{id}', name: 'app_client_delete', methods: ['POST'])]
-    public function delete(Request $request, Client $client, EntityManagerInterface $entityManager): Response
+    #[Route('/{id}/delete', name: 'client_delete', methods: ['POST'])]
+    public function delete(Request $request, Client $client, ManagerRegistry $doctrine): Response
     {
-        if ($this->isCsrfTokenValid('delete'.$client->getId(), $request->getPayload()->getString('_token'))) {
-            $entityManager->remove($client);
-            $entityManager->flush();
+        if ($this->isCsrfTokenValid('delete'.$client->getId(), $request->request->get('_token'))) {
+            $doctrine->getManager()->remove($client);
+            $doctrine->getManager()->flush();
         }
-
-        return $this->redirectToRoute('app_client_index', [], Response::HTTP_SEE_OTHER);
+        return $this->redirectToRoute('client_index');
     }
 }
